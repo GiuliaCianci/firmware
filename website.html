@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat+Alternates:wght@400;500;700&display=swap" rel="stylesheet">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesi Triennale Giulia Cianci - Controllo Arduino via USB</title>
+    <style>
+        body {
+            font-family: 'Montserrat Alternates', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: rgb(242, 231, 249);
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        .title {
+            font-size: 40px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+        .top-buttons {
+            display: flex;
+            justify-content: flex-start;
+            gap: 15px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .top-buttons button {
+            min-width: 170px;
+            padding: 10px 20px; /* Aumenta il padding orizzontale per dare più spazio al testo */
+            font-size: 16px; /* Aumenta la dimensione del testo se necessario */
+            border-radius: 10px; /* Rende i bordi più arrotondati */
+            cursor: pointer; /* Cambia il cursore quando si passa sopra */
+            border: none; /* Rimuove il bordo */
+            display: flex;
+            background: rgb(107, 89, 120);
+            color: rgb(254, 242, 255);
+            align-items: center;
+            justify-content: center; /* Centra il testo sia orizzontalmente che verticalmente */
+            text-align: center; /* Assicura che il testo sia centrato */
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        .button {
+            width: 90px;  /* Adjust as needed */
+            height: 60px; /* Adjust as needed */
+            margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-family: 'Montserrat Alternates', sans-serif;
+            display: flex;
+            border-radius: 15px;
+            background-color: rgb(255, 255, 255);
+            justify-content: center;  /* Centers horizontally */
+            align-items: center;  /* Centers vertically */
+            padding: 10px; /* Adjust padding if needed */
+        }
+        .button img {
+            width: 60%;  /* Adjust size to fit nicely */
+            height: auto;  /* Keeps aspect ratio */
+            object-fit: contain; /* Prevents cropping */
+        }
+        .center-buttons {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+    
+        .left-bottom {
+            position: absolute;
+            left: 10px;
+            bottom: 10px;
+        }
+        .speed-display {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            font-size: 30px;
+            font-weight: bold;
+            background: rgb(50, 50, 50);
+            color: rgb(197, 185, 230);
+            padding: 20px;
+            border-radius: 5px;
+        }
+        .stop-section {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 200px; /* Larghezza rettangolo */
+            height: 100vh; /* Occupa tutta l'altezza della pagina */
+            cursor: pointer;
+            background-color: rgb(200, 50, 50);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .stop-text {
+            color: rgb(2, 2, 2);
+            font-size: 50px;
+            font-family: 'Montserrat Alternates', sans-serif;
+            font-weight: bold;
+            writing-mode: vertical-rl;
+            text-orientation: upright;
+            text-align: center;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Titolo -->
+        <div class="title">Controllo Arduino</div>
+        
+        <!-- Bottoni di connessione sotto il titolo -->
+        <div class="top-buttons">
+            <button class="button" onclick="connectSerial()">CONNESSIONE</button>
+            <button class="button" onclick="disconnectSerial()">DISCONNESSIONE</button>
+        </div>
+        
+        <!-- -->
+        <button class="button" title="Accelerate" onclick="sendcommand('a')"><img src="img/accelerate.png" alt="Accelerate"></button>
+        
+        <!-- Layout per i bottoni -->
+        <div class="center-buttons">
+            <div class="row">
+                <button class="button" title="Forward" onclick="sendcommand('f')"><img src="img/uparrow.png" alt="Forward"></button>
+            </div>
+            <div class="row">
+                <button class="button" title="Left" onclick="sendcommand('l')"><img src="img/leftarrow.png" alt="Left"></button>
+                <button class="button" title="Right" onclick="sendcommand('r')"><img src="img/rightarrow.png" alt="Right"></button>
+            </div>
+            <div class="row">
+                <button class="button" title="Backward" onclick="sendcommand('b')"><img src="img/downarrow.png" alt="Backward"></button>
+            </div>
+            <div class="row">
+                <button class="button" title="Decelerate" onclick="sendcommand('d')"><img src="img/decelerate.png" alt="Decelerate"></button>
+            </div>
+        </div>
+                               
+        <div class="speed-display">Giri al minuto: <span id="pwm">0</span> pwm</div>
+
+        <button class="stop-section" onclick="sendcommand('s')">
+            <span class="stop-text">STOP</span>
+        </button>
+    </div>
+
+    <script>
+        let port, writer, reader;
+
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort(); // Chiede all'utente di scegliere la porta
+                await port.open({ baudRate: 9600 }); // Apre la connessione
+                writer = port.writable.getWriter();
+                reader = port.readable.getReader();
+                alert("Connesso con successo!");
+                setInterval(requestSpeed, 1000); // Chiama requestSpeed ogni 1000ms (1 secondo)
+            } catch (error) {
+                alert("Errore di connessione: " + error);
+            }
+        }
+
+        async function disconnectSerial() {
+        if (port) {
+            try {
+            // 1. Chiude il reader:
+            if (reader) {
+                await reader.cancel(); // Forza l'interruzione della lettura in sospeso
+                await reader.releaseLock();
+                reader = null;
+            }
+
+            // 2. Chiude il writer:
+            if (writer) {
+                await writer.close(); // Permette di svuotare il buffer di scrittura
+                await writer.releaseLock();
+                writer = null;
+            }
+
+            // 3. Chiude la porta:
+            await port.close();
+            port = null;
+
+            alert("Disconnesso con successo!");
+            } catch (error) {
+            console.error("Errore durante la disconnessione: ", error);
+            alert("Errore durante la disconnessione: " + error);
+            }
+            } else {
+                alert("Nessuna porta seriale connessa.");
+            }
+        }
+
+        async function requestSpeed() {
+            if (!writer || !reader){
+                console.warn("Connessione seriale non stabilita. Impossibile richiedere la velocità.");
+                return; // Verifica la connessione
+            } 
+            console.log("requestSpeed() chiamata!"); // Aggiungi questa linea
+            await writer.write(new TextEncoder().encode('v'));  // Invia 'v' (ASCII 118) ad Arduino
+
+            try {
+                const { value } = await reader.read(); // Riceve la risposta
+                let pwmValue = new TextDecoder().decode(value).trim(); // Riceve il valore PWM da Arduino
+                let numericPWM = parseInt(pwmValue); // O parseFloat(pwmValue) se hai decimali
+                if (isNaN(numericPWM)) {
+                    return; // Esci dalla funzione se la conversione fallisce
+                }
+
+                document.getElementById("pwm").innerText = numericPWM.toFixed(2); // Aggiorna il valore sul sito
+            } catch (error) {
+                console.log("Errore nella lettura dei giri al minuto: " + error);
+            }
+        }
+
+
+        //invio comandi
+        async function sendcommand(command){
+            if (!writer) {
+                alert("Prima connettiti ad Arduino!");
+                return;
+            }
+            
+            await writer.write(new TextEncoder().encode(command)); // Scrive il comando sulla porta seriale
+
+        }
+    </script>
+</body>
+</html>
